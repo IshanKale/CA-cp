@@ -1,0 +1,225 @@
+/*
+ * src/pages/VisualizePage.css
+ * (Assumes it's imported by VisualizePage.jsx)
+ */
+
+.viz-page-container {
+  display: flex;
+  flex-direction: column;
+  /* Full height minus the 70px navbar */
+  height: calc(100vh - 70px);
+}
+
+.main-content {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden; /* Prevents double scrollbars */
+}
+
+.graph-container {
+  flex: 3;
+  height: 100%; /* Make graph container fill its space */
+  background-color: #ffffff;
+}
+
+/* ----------------------------- */
+/* --- THE CRITICAL FIX HERE --- */
+/* ----------------------------- */
+.graph-container .react-flow__node {
+  white-space: pre-wrap !important; /* This respects the \n for (h, e) */
+  text-align: center;
+  font-size: 14px;
+}
+/* ----------------------------- */
+/* --- END OF FIX --- */
+/* ----------------------------- */
+
+
+.controls-container {
+  flex: 1;
+  padding: 20px;
+  background-color: #ecf0f1;
+  border-left: 1px solid #bdc3c7;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  
+  /* --- KEY LAYOUT CHANGE --- */
+  overflow-y: auto; /* Make the control panel scrollable! */
+  max-height: 100%; /* Ensure it fits within the main-content */
+}
+
+.controls-container h2 {
+  color: #2c3e50;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 10px;
+  margin: 0;
+}
+
+/* --- New Preset Select --- */
+.controls-container select.preset-select {
+  width: 100%;
+  padding: 10px;
+  font-size: 1rem;
+  border-radius: 5px;
+  border: 1px solid #bdc3c7;
+  background-color: white;
+  margin-bottom: -10px; /* Pull textarea up */
+}
+
+.controls-container select {
+  width: 100%;
+  padding: 10px;
+  font-size: 1rem;
+  border-radius: 5px;
+  border: 1px solid #bdc3c7;
+  background-color: white;
+}
+
+.input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-area textarea {
+  width: 95%;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #bdc3c7;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.generate-btn {
+  background-color: #27ae60 !important;
+  font-weight: bold;
+}
+
+.generate-btn:hover:not(:disabled) {
+  background-color: #229954 !important;
+}
+
+.buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+button {
+  padding: 10px 15px;
+  font-size: 16px;
+  border: none;
+  border-radius: 5px;
+  background-color: #3498db;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  flex-grow: 1;
+}
+
+button:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+
+button:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.info-box, .flow-box {
+  background-color: #ffffff;
+  padding: 15px;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.info-box h3, .flow-box h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #34495e;
+}
+
+.info-box p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* --- New Info Box Styles --- */
+.step-info.finished {
+  background-color: #e6f7ee;
+  border-left: 5px solid #27ae60;
+}
+.step-info.finished h3 {
+  color: #27ae60;
+}
+
+.algo-context {
+  background-color: #eaf5ff;
+  border-left: 5px solid #3498db;
+}
+.algo-context p {
+  font-size: 0.95rem;
+  font-style: italic;
+  color: #2c3e50;
+}
+
+.live-stats ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.live-stats li {
+  font-size: 1.1rem;
+  color: #34495e;
+  margin-bottom: 8px;
+}
+.live-stats li strong {
+  color: #2c3e50;
+  display: inline-block;
+  min-width: 150px;
+}
+
+/* --- End New Info Box Styles --- */
+
+.flow-value {
+  font-size: 2.5em;
+  font-weight: bold;
+  color: #27ae60;
+  text-align: center;
+  margin: 10px 0;
+}
+
+.error-message {
+    color: #c0392b;
+    font-size: 14px;
+    background-color: #f2dede;
+    border: 1px solid #ebccd1;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+/* Add this to the bottom of src/pages/VisualizePage.css */
+
+.preset-select option[value="custom"] {
+  font-style: italic;
+  font-weight: bold;
+  color: #000;
+  background-color: #eee;
+}
+
+/* Add these new rules to src/pages/VisualizePage.css */
+
+.preset-select option[value="custom"] {
+  font-style: italic;
+  font-weight: bold;
+  color: #000;
+  background-color: #eee;
+}
+
+.input-area textarea.locked {
+  background-color: #f0f0f0; /* Gray out the background */
+  opacity: 0.8;
+  cursor: not-allowed; /* Show a "not-allowed" cursor */
+}
