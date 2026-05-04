@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -6,15 +6,17 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-import './VisualizePage.css'; // We will update this CSS
-import { runFordFulkerson } from '../../utils/fordFulkerson';
-import { runDinic } from '../../utils/dinic';
-import { runPushRelabel } from '../../utils/pushRelabel';
+} from "reactflow";
+import "reactflow/dist/style.css";
+import "./VisualizePage.css"; // We will update this CSS
+import { runFordFulkerson } from "../../utils/fordFulkerson";
+import { runDinic } from "../../utils/dinic";
+import { runPushRelabel } from "../../utils/pushRelabel";
+import { runEdmondsKarp } from "../../utils/edmondsKarp";
+import { runBoykovKolmogorov } from "../../utils/boykovKolmogorov";
 
 const presetGraphs = {
-  "default": `s,a,10
+  default: `s,a,10
 s,b,10
 a,c,4
 a,d,8
@@ -44,20 +46,35 @@ e,t,15`,
 const AlgorithmContext = ({ algorithm }) => {
   const content = useMemo(() => {
     switch (algorithm) {
-      case 'fordFulkerson':
+      case "fordFulkerson":
         return {
-          title: 'Ford-Fulkerson (BFS)',
-          description: 'Strategy: Finds one augmenting path at a time using a Breadth-First Search (BFS). It looks for the "shortest" path (by edge count) in the residual graph.'
+          title: "Ford-Fulkerson (BFS)",
+          description:
+            'Strategy: Finds one augmenting path at a time using a Breadth-First Search (BFS). It looks for the "shortest" path (by edge count) in the residual graph.',
         };
-      case 'dinic':
+      case "edmondsKarp":
         return {
-          title: 'Dinic\'s Algorithm',
-          description: 'Strategy: A faster, "batched" approach. It works in phases, finding *all* shortest paths at once using a "Level Graph" and then finding a "Blocking Flow".'
+          title: "Edmonds-Karp",
+          description:
+            "Strategy: A variant of Ford-Fulkerson that uses BFS to always find the shortest augmenting path, guaranteeing O(VE²) polynomial time complexity.",
         };
-      case 'pushRelabel':
+      case "dinic":
         return {
-          title: 'Push-Relabel',
-          description: 'Strategy: A "local" algorithm. It floods the graph from the source and "pushes" flow downhill based on node "heights". It doesn\'t find paths at all.'
+          title: "Dinic's Algorithm",
+          description:
+            'Strategy: A faster, "batched" approach. It works in phases, finding *all* shortest paths at once using a "Level Graph" and then finding a "Blocking Flow".',
+        };
+      case "pushRelabel":
+        return {
+          title: "Push-Relabel",
+          description:
+            'Strategy: A "local" algorithm. It floods the graph from the source and "pushes" flow downhill based on node "heights". It doesn\'t find paths at all.',
+        };
+      case "boykovKolmogorov":
+        return {
+          title: "Boykov-Kolmogorov",
+          description:
+            "Strategy: Grows two search trees simultaneously from source and sink. Very efficient for low-capacity networks and widely used in computer vision.",
         };
       default:
         return {};
@@ -77,30 +94,44 @@ const LiveStats = ({ steps, currentStep, algorithm }) => {
     const stepsSoFar = steps.slice(0, currentStep + 1);
     if (stepsSoFar.length === 0) return null;
 
-    if (algorithm === 'fordFulkerson') {
+    if (
+      algorithm === "fordFulkerson" ||
+      algorithm === "edmondsKarp" ||
+      algorithm === "boykovKolmogorov"
+    ) {
       return (
-        <li><strong>Augmenting Paths:</strong> {stepsSoFar.length}</li>
+        <li>
+          <strong>Augmenting Paths:</strong> {stepsSoFar.length}
+        </li>
       );
     }
-    
-    if (algorithm === 'dinic') {
+
+    if (algorithm === "dinic") {
       const lastStep = stepsSoFar[stepsSoFar.length - 1];
       const phase = lastStep?.description.match(/Phase (\d+)/)?.[1] || 1;
       return (
         <>
-          <li><strong>Current Phase:</strong> {phase}</li>
-          <li><strong>Total Paths Found:</strong> {stepsSoFar.length}</li>
+          <li>
+            <strong>Current Phase:</strong> {phase}
+          </li>
+          <li>
+            <strong>Total Paths Found:</strong> {stepsSoFar.length}
+          </li>
         </>
       );
     }
 
-    if (algorithm === 'pushRelabel') {
-      const pushes = stepsSoFar.filter(s => s.type === 'push').length;
-      const relabels = stepsSoFar.filter(s => s.type === 'relabel').length;
+    if (algorithm === "pushRelabel") {
+      const pushes = stepsSoFar.filter((s) => s.type === "push").length;
+      const relabels = stepsSoFar.filter((s) => s.type === "relabel").length;
       return (
         <>
-          <li><strong>Total Pushes:</strong> {pushes}</li>
-          <li><strong>Total Relabels:</strong> {relabels}</li>
+          <li>
+            <strong>Total Pushes:</strong> {pushes}
+          </li>
+          <li>
+            <strong>Total Relabels:</strong> {relabels}
+          </li>
         </>
       );
     }
@@ -108,7 +139,7 @@ const LiveStats = ({ steps, currentStep, algorithm }) => {
   }, [steps, currentStep, algorithm]);
 
   if (!stats) return null;
-  
+
   return (
     <div className="info-box live-stats">
       <h3>Live Statistics</h3>
@@ -117,15 +148,14 @@ const LiveStats = ({ steps, currentStep, algorithm }) => {
   );
 };
 
-
 function VisualizePage() {
   const [userInput, setUserInput] = useState(presetGraphs["default"]);
   const [initialEdges, setInitialEdges] = useState([]);
   const [algorithmSteps, setAlgorithmSteps] = useState([]);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState("");
   const [currentStep, setCurrentStep] = useState(-1);
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState('fordFulkerson');
-  const [selectedPreset, setSelectedPreset] = useState('default'); // Default preset
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState("fordFulkerson");
+  const [selectedPreset, setSelectedPreset] = useState("default"); // Default preset
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -134,9 +164,9 @@ function VisualizePage() {
   const handlePresetChange = (e) => {
     const presetName = e.target.value;
     setSelectedPreset(presetName);
-    
+
     // If the user selects a preset, update the text and lock the box.
-    if (presetName !== 'custom') {
+    if (presetName !== "custom") {
       setUserInput(presetGraphs[presetName]);
     }
     // If they select "custom", the box is just unlocked. We don't change the text.
@@ -154,14 +184,16 @@ function VisualizePage() {
   const handleGenerateGraph = () => {
     setAlgorithmSteps([]);
     setCurrentStep(-1);
-    setErrorMessage('');
+    setErrorMessage("");
 
     const parsedEdges = [];
     const nodeSet = new Set();
-    const lines = userInput.trim().split('\n');
+    const lines = userInput.trim().split("\n");
 
     for (const line of lines) {
-      const [source, target, capacityStr] = line.split(',').map(s => s.trim());
+      const [source, target, capacityStr] = line
+        .split(",")
+        .map((s) => s.trim());
       const capacity = parseInt(capacityStr, 10);
       if (!source || !target || isNaN(capacity)) {
         setErrorMessage(`Invalid edge format: "${line}".`);
@@ -177,47 +209,64 @@ function VisualizePage() {
       nodeSet.add(source);
       nodeSet.add(target);
     }
-    
-    if (!nodeSet.has('s') || !nodeSet.has('t')) {
-      setErrorMessage('Graph must contain a source node "s" and a sink node "t".');
+
+    if (!nodeSet.has("s") || !nodeSet.has("t")) {
+      setErrorMessage(
+        'Graph must contain a source node "s" and a sink node "t".',
+      );
       return;
     }
 
     const nodeIds = Array.from(nodeSet);
     const generatedNodes = nodeIds.map((id) => {
       let x, y;
-      if (id === 's') { x = 0; y = 150; }
-      else if (id === 't') { x = 650; y = 150; }
-      else {
-        const otherNodes = nodeIds.filter(nid => nid !== 's' && nid !== 't');
+      if (id === "s") {
+        x = 0;
+        y = 150;
+      } else if (id === "t") {
+        x = 650;
+        y = 150;
+      } else {
+        const otherNodes = nodeIds.filter((nid) => nid !== "s" && nid !== "t");
         const nodeIndex = otherNodes.indexOf(id);
         const col = 1 + Math.floor(nodeIndex / 3);
         const row = nodeIndex % 3;
         x = 150 * col;
         y = 100 * row;
       }
-      const label = id === 's' ? 's (Source)' : id === 't' ? 't (Sink)' : id.toUpperCase();
+      const label =
+        id === "s" ? "s (Source)" : id === "t" ? "t (Sink)" : id.toUpperCase();
       return {
         id,
         position: { x, y },
         data: { label: label, originalLabel: label },
-        type: id === 's' ? 'input' : id === 't' ? 'output' : 'default',
+        type: id === "s" ? "input" : id === "t" ? "output" : "default",
       };
     });
-    
-    const algoInputEdges = parsedEdges.map(e => ({...e.data, source: e.source, target: e.target}));
+
+    const algoInputEdges = parsedEdges.map((e) => ({
+      ...e.data,
+      source: e.source,
+      target: e.target,
+    }));
     let steps = [];
 
     switch (selectedAlgorithm) {
-      case 'dinic':
-        steps = runDinic(nodeIds, algoInputEdges, 's', 't');
+      case "dinic":
+        steps = runDinic(nodeIds, algoInputEdges, "s", "t");
         break;
-      case 'pushRelabel':
-        steps = runPushRelabel(nodeIds, algoInputEdges, 's', 't');
+      case "pushRelabel":
+        steps = runPushRelabel(nodeIds, algoInputEdges, "s", "t");
         break;
-      case 'fordFulkerson':
+      case "edmondsKarp":
+        steps = runEdmondsKarp(nodeIds, algoInputEdges, "s", "t");
+        break;
+      case "boykovKolmogorov":
+        steps = runBoykovKolmogorov(nodeIds, algoInputEdges, "s", "t");
+        break;
+      case "fordFulkerson":
       default:
-        steps = runFordFulkerson(nodeIds, algoInputEdges, 's', 't');
+        steps = runFordFulkerson(nodeIds, algoInputEdges, "s", "t");
         break;
     }
 
@@ -227,78 +276,104 @@ function VisualizePage() {
   };
 
   useMemo(() => {
-    if (selectedAlgorithm === 'pushRelabel') {
+    if (selectedAlgorithm === "pushRelabel") {
       let stepData;
       if (currentStep >= 0 && currentStep < algorithmSteps.length) {
         stepData = algorithmSteps[currentStep];
       }
-      setNodes(prevNodes => prevNodes.map(node => {
-        const data = (stepData && stepData.nodeData) ? stepData.nodeData[node.id] : null;
-        const originalLabel = node.data.originalLabel;
-        if (!data || currentStep < 0) {
-          return { ...node, data: { ...node.data, label: originalLabel }, style: {} };
-        }
-        let excessStr = data.excess;
-        if (node.id === 's' && stepData.type === 'init') excessStr = '∞';
-        if (data.excess < 0) excessStr = '0';
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            label: `${originalLabel}\n(h: ${data.height}, e: ${excessStr})`
-          },
-          style: node.id === stepData.activeNode ? 
-                 { border: '3px solid #FF0072', background: '#fff0f0' } : 
-                 {}
-        };
-      }));
+      setNodes((prevNodes) =>
+        prevNodes.map((node) => {
+          const data =
+            stepData && stepData.nodeData ? stepData.nodeData[node.id] : null;
+          const originalLabel = node.data.originalLabel;
+          if (!data || currentStep < 0) {
+            return {
+              ...node,
+              data: { ...node.data, label: originalLabel },
+              style: {},
+            };
+          }
+          let excessStr = data.excess;
+          if (node.id === "s" && stepData.type === "init") excessStr = "∞";
+          if (data.excess < 0) excessStr = "0";
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              label: `${originalLabel}\n(h: ${data.height}, e: ${excessStr})`,
+            },
+            style:
+              node.id === stepData.activeNode
+                ? { border: "3px solid #FF0072", background: "#fff0f0" }
+                : {},
+          };
+        }),
+      );
     } else {
-      setNodes(prevNodes => prevNodes.map(node => ({
-        ...node,
-        data: { ...node.data, label: node.data.originalLabel },
-        style: {}
-      })));
+      setNodes((prevNodes) =>
+        prevNodes.map((node) => ({
+          ...node,
+          data: { ...node.data, label: node.data.originalLabel },
+          style: {},
+        })),
+      );
     }
   }, [currentStep, algorithmSteps, setNodes, selectedAlgorithm]);
 
   useMemo(() => {
     if (initialEdges.length === 0) {
-      setEdges([]); 
+      setEdges([]);
       return;
     }
     let stepData;
     if (currentStep >= 0 && currentStep < algorithmSteps.length) {
       stepData = algorithmSteps[currentStep];
     } else {
-      setEdges(initialEdges.map(e => ({...e, label: `0 / ${e.data.capacity}`, style: {}, animated: false})));
+      setEdges(
+        initialEdges.map((e) => ({
+          ...e,
+          label: `0 / ${e.data.capacity}`,
+          style: {},
+          animated: false,
+        })),
+      );
       return;
     }
-    if (selectedAlgorithm === 'pushRelabel') {
-      const updatedEdges = initialEdges.map(edge => {
-          const newEdge = { ...edge, style: {}, animated: false };
-          const currentFlow = (stepData && stepData.edgeFlows) ? (stepData.edgeFlows[edge.id] || 0) : 0;
-          newEdge.label = `${currentFlow} / ${edge.data.capacity}`;
-          newEdge.style = (currentFlow === edge.data.capacity) ? { stroke: '#cccccc' } : {};
-          if (stepData && edge.id === stepData.pushEdge) {
-              newEdge.style = { ...newEdge.style, stroke: '#FF0072', strokeWidth: 3 };
-              newEdge.animated = true;
-          }
-          newEdge.markerEnd = { type: MarkerType.ArrowClosed };
-          return newEdge;
+    if (selectedAlgorithm === "pushRelabel") {
+      const updatedEdges = initialEdges.map((edge) => {
+        const newEdge = { ...edge, style: {}, animated: false };
+        const currentFlow =
+          stepData && stepData.edgeFlows ? stepData.edgeFlows[edge.id] || 0 : 0;
+        newEdge.label = `${currentFlow} / ${edge.data.capacity}`;
+        newEdge.style =
+          currentFlow === edge.data.capacity ? { stroke: "#cccccc" } : {};
+        if (stepData && edge.id === stepData.pushEdge) {
+          newEdge.style = {
+            ...newEdge.style,
+            stroke: "#FF0072",
+            strokeWidth: 3,
+          };
+          newEdge.animated = true;
+        }
+        newEdge.markerEnd = { type: MarkerType.ArrowClosed };
+        return newEdge;
       });
       setEdges(updatedEdges);
     } else {
-      const updatedEdges = initialEdges.map(edge => {
+      const updatedEdges = initialEdges.map((edge) => {
         const newEdge = { ...edge, style: {}, animated: false };
-        const currentFlow = stepData ? (stepData.edgeFlows[edge.id] || 0) : 0;
+        const currentFlow = stepData ? stepData.edgeFlows[edge.id] || 0 : 0;
         newEdge.label = `${currentFlow} / ${edge.data.capacity}`;
         if (stepData?.path.length > 0) {
           const isPhase = Array.isArray(stepData.path[0]);
           if (isPhase) {
             for (const path of stepData.path) {
               for (let i = 0; i < path.length - 1; i++) {
-                if (newEdge.source === path[i] && newEdge.target === path[i+1]) {
-                  newEdge.style = { stroke: '#FF0072', strokeWidth: 3 };
+                if (
+                  newEdge.source === path[i] &&
+                  newEdge.target === path[i + 1]
+                ) {
+                  newEdge.style = { stroke: "#FF0072", strokeWidth: 3 };
                   newEdge.animated = true;
                 }
               }
@@ -306,15 +381,18 @@ function VisualizePage() {
           } else {
             const path = stepData.path;
             for (let i = 0; i < path.length - 1; i++) {
-              if (newEdge.source === path[i] && newEdge.target === path[i+1]) {
-                newEdge.style = { stroke: '#FF0072', strokeWidth: 3 };
+              if (
+                newEdge.source === path[i] &&
+                newEdge.target === path[i + 1]
+              ) {
+                newEdge.style = { stroke: "#FF0072", strokeWidth: 3 };
                 newEdge.animated = true;
               }
             }
           }
         }
         if (currentFlow === edge.data.capacity) {
-          newEdge.style = { ...newEdge.style, stroke: '#cccccc' };
+          newEdge.style = { ...newEdge.style, stroke: "#cccccc" };
         }
         newEdge.markerEnd = { type: MarkerType.ArrowClosed };
         return newEdge;
@@ -328,15 +406,19 @@ function VisualizePage() {
     const currentStepData = algorithmSteps[currentStep];
     if (!currentStepData || !currentStepData.edgeFlows) return 0;
     return initialEdges
-        .filter(e => e.source === 's')
-        .reduce((sum, e) => sum + (currentStepData.edgeFlows[e.id] || 0), 0);
+      .filter((e) => e.source === "s")
+      .reduce((sum, e) => sum + (currentStepData.edgeFlows[e.id] || 0), 0);
   }, [currentStep, algorithmSteps, initialEdges]);
 
-  const handleNext = () => setCurrentStep(prev => Math.min(prev + 1, algorithmSteps.length - 1));
-  const handlePrev = () => setCurrentStep(prev => Math.max(prev - 1, -1));
+  const handleNext = () =>
+    setCurrentStep((prev) => Math.min(prev + 1, algorithmSteps.length - 1));
+  const handlePrev = () => setCurrentStep((prev) => Math.max(prev - 1, -1));
   const handleReset = () => setCurrentStep(-1);
-  
-  const currentStepInfo = (currentStep >= 0 && algorithmSteps.length > 0) ? algorithmSteps[currentStep] : { description: "Generate a graph or load the default to begin." };
+
+  const currentStepInfo =
+    currentStep >= 0 && algorithmSteps.length > 0
+      ? algorithmSteps[currentStep]
+      : { description: "Generate a graph or load the default to begin." };
   const isFinished = currentStep === algorithmSteps.length - 1;
 
   return (
@@ -357,23 +439,24 @@ function VisualizePage() {
           </ReactFlow>
         </div>
         <div className="controls-container">
-          
           <h2>Algorithm</h2>
-          <select 
-            value={selectedAlgorithm} 
+          <select
+            value={selectedAlgorithm}
             onChange={(e) => setSelectedAlgorithm(e.target.value)}
           >
             <option value="fordFulkerson">Ford-Fulkerson (BFS)</option>
+            <option value="edmondsKarp">Edmonds-Karp</option>
             <option value="dinic">Dinic's Algorithm</option>
             <option value="pushRelabel">Push-Relabel</option>
+            <option value="boykovKolmogorov">Boykov-Kolmogorov</option>
           </select>
 
           <AlgorithmContext algorithm={selectedAlgorithm} />
-          
+
           <h2>Graph Input</h2>
-          <select 
-            className="preset-select" 
-            value={selectedPreset} 
+          <select
+            className="preset-select"
+            value={selectedPreset}
             onChange={handlePresetChange}
           >
             <option value="default">Classic Graph</option>
@@ -387,39 +470,55 @@ function VisualizePage() {
             <textarea
               value={userInput}
               onChange={handleTextareaChange}
-              readOnly={selectedPreset !== 'custom'}
-              className={selectedPreset !== 'custom' ? 'locked' : ''}
+              readOnly={selectedPreset !== "custom"}
+              className={selectedPreset !== "custom" ? "locked" : ""}
               rows="8"
               placeholder="Enter edge list, e.g.&#10;s,a,10&#10;a,t,10"
             ></textarea>
             {/* --- END KEY UX CHANGE --- */}
-            <button className="generate-btn" onClick={handleGenerateGraph}>Generate & Run</button>
+            <button className="generate-btn" onClick={handleGenerateGraph}>
+              Generate & Run
+            </button>
             {errorMessage && <p className="error-message">{errorMessage}</p>}
           </div>
 
           <h2>Controls & Information</h2>
           <div className="buttons">
-            <button onClick={handlePrev} disabled={currentStep < 0}>Previous</button>
-            <button onClick={handleNext} disabled={isFinished || algorithmSteps.length === 0}>Next</button>
-            <button onClick={handleReset} disabled={algorithmSteps.length === 0}>Reset</button>
+            <button onClick={handlePrev} disabled={currentStep < 0}>
+              Previous
+            </button>
+            <button
+              onClick={handleNext}
+              disabled={isFinished || algorithmSteps.length === 0}
+            >
+              Next
+            </button>
+            <button
+              onClick={handleReset}
+              disabled={algorithmSteps.length === 0}
+            >
+              Reset
+            </button>
           </div>
           <div className="flow-box">
             <h3>Maximum Flow So Far</h3>
             <p className="flow-value">{maxFlow}</p>
           </div>
-          <div className={`info-box step-info ${isFinished ? 'finished' : ''}`}>
-            <h3>Step {currentStep < 0 ? 0 : currentStep + 1} / {algorithmSteps.length}</h3>
+          <div className={`info-box step-info ${isFinished ? "finished" : ""}`}>
+            <h3>
+              Step {currentStep < 0 ? 0 : currentStep + 1} /{" "}
+              {algorithmSteps.length}
+            </h3>
             <p>{currentStepInfo.description}</p>
           </div>
 
           {currentStep >= 0 && (
-            <LiveStats 
-              steps={algorithmSteps} 
-              currentStep={currentStep} 
-              algorithm={selectedAlgorithm} 
+            <LiveStats
+              steps={algorithmSteps}
+              currentStep={currentStep}
+              algorithm={selectedAlgorithm}
             />
           )}
-
         </div>
       </div>
     </div>

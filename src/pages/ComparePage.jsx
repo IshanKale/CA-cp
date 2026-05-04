@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
-import './ComparePage.css'; // We will update this
+import React, { useState } from "react";
+import "./ComparePage.css"; // We will update this
 
-import { runFordFulkerson } from '../../utils/fordFulkerson';
-import { runDinic } from '../../utils/dinic';
-import { runPushRelabel } from '../../utils/pushRelabel';
-import VisualizationInstance from '../components/VisualizationInstance';
-import AnalysisDisplay from '../components/AnalysisDisplay';
+import { runFordFulkerson } from "../../utils/fordFulkerson";
+import { runDinic } from "../../utils/dinic";
+import { runPushRelabel } from "../../utils/pushRelabel";
+import { runEdmondsKarp } from "../../utils/edmondsKarp";
+import { runBoykovKolmogorov } from "../../utils/boykovKolmogorov";
+import VisualizationInstance from "../components/VisualizationInstance";
+import AnalysisDisplay from "../components/AnalysisDisplay";
 // --- KEY ADDITION: Import the new modal component ---
-import FullScreenModal from '../components/FullScreenModal';
+import FullScreenModal from "../components/FullScreenModal";
 
 const presetGraphs = {
   // (presetGraphs object is unchanged)
-  "default": `s,a,16
+  default: `s,a,16
 s,b,13
 a,b,10
 a,c,12
@@ -48,50 +50,63 @@ d,t,10`,
 const getExpandedVizData = (key, masterStepData) => {
   if (!key || !masterStepData) return null;
   switch (key) {
-    case 'ff':
+    case "ff":
       return {
         title: "Ford-Fulkerson (BFS)",
         algorithmType: "path",
         allSteps: masterStepData.stepsFF,
-        stats: masterStepData.stats.ff
+        stats: masterStepData.stats.ff,
       };
-    case 'dinic':
+    case "edmondsKarp":
+      return {
+        title: "Edmonds-Karp",
+        algorithmType: "path",
+        allSteps: masterStepData.stepsEK,
+        stats: masterStepData.stats.ek,
+      };
+    case "dinic":
       return {
         title: "Dinic's Algorithm",
         algorithmType: "path",
         allSteps: masterStepData.stepsDinic,
-        stats: masterStepData.stats.dinic
+        stats: masterStepData.stats.dinic,
       };
-    case 'pr':
+    case "pr":
       return {
         title: "Push-Relabel",
         algorithmType: "push-relabel",
         allSteps: masterStepData.stepsPR,
-        stats: masterStepData.stats.pr
+        stats: masterStepData.stats.pr,
+      };
+    case "bk":
+      return {
+        title: "Boykov-Kolmogorov",
+        algorithmType: "path",
+        allSteps: masterStepData.stepsBK,
+        stats: masterStepData.stats.bk,
       };
     default:
       return null;
   }
 };
 
-
 function ComparePage() {
   const [userInput, setUserInput] = useState(presetGraphs["default"]);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [masterStepData, setMasterStepData] = useState(null);
   const [currentStep, setCurrentStep] = useState(-1);
-  const [selectedPreset, setSelectedPreset] = useState('default');
-  
-  // --- KEY CHANGE: This state now controls the modal ---
-  const [expandedViz, setExpandedViz] = useState(null); // null, 'ff', 'dinic', or 'pr'
+  const [selectedPreset, setSelectedPreset] = useState("default");
 
-  // (All handlers - handlePresetChange, handleTextareaChange, 
+  // --- KEY CHANGE: This state now controls the modal ---
+  const [expandedViz, setExpandedViz] = useState(null); // null, 'ff', 'ek', 'dinic', 'pr', or 'bk'
+
+  // (All handlers - handlePresetChange, handleTextareaChange,
   //  calculateMaxFlow, handleGenerateGraph - are unchanged)
   const handlePresetChange = (e) => {
     const presetName = e.target.value;
     setSelectedPreset(presetName);
-    if (presetName !== 'custom') {
+    if (presetName !== "custom") {
       setUserInput(presetGraphs[presetName]);
     }
     setMasterStepData(null);
@@ -100,13 +115,13 @@ function ComparePage() {
 
   const handleTextareaChange = (e) => {
     setUserInput(e.target.value);
-    setSelectedPreset('custom');
+    setSelectedPreset("custom");
   };
 
   const calculateMaxFlow = (finalStep, initialEdges) => {
     if (!finalStep || !finalStep.edgeFlows) return 0;
     return initialEdges
-      .filter(e => e.source === 's')
+      .filter((e) => e.source === "s")
       .reduce((sum, e) => sum + (finalStep.edgeFlows[e.id] || 0), 0);
   };
 
@@ -114,15 +129,17 @@ function ComparePage() {
     setIsLoading(true);
     setMasterStepData(null);
     setCurrentStep(-1);
-    setErrorMessage('');
+    setErrorMessage("");
     setExpandedViz(null); // Reset focus
 
     // ... (rest of the parsing/running logic is identical) ...
     const parsedEdges = [];
     const nodeSet = new Set();
-    const lines = userInput.trim().split('\n');
+    const lines = userInput.trim().split("\n");
     for (const line of lines) {
-      const [source, target, capacityStr] = line.split(',').map(s => s.trim());
+      const [source, target, capacityStr] = line
+        .split(",")
+        .map((s) => s.trim());
       const capacity = parseInt(capacityStr, 10);
       if (!source || !target || isNaN(capacity)) {
         setErrorMessage(`Invalid edge format: "${line}".`);
@@ -138,32 +155,41 @@ function ComparePage() {
       nodeSet.add(source);
       nodeSet.add(target);
     }
-    if (!nodeSet.has('s') || !nodeSet.has('t')) {
+    if (!nodeSet.has("s") || !nodeSet.has("t")) {
       setErrorMessage('Graph must contain "s" and "t".');
       setIsLoading(false);
       return;
     }
     const nodeIds = Array.from(nodeSet);
-    const algoInputEdges = parsedEdges.map(e => ({ ...e.data, source: e.source, target: e.target }));
+    const algoInputEdges = parsedEdges.map((e) => ({
+      ...e.data,
+      source: e.source,
+      target: e.target,
+    }));
 
     const generatedNodes = nodeIds.map((id) => {
       let x, y;
-      if (id === 's') { x = 0; y = 150; }
-      else if (id === 't') { x = 650; y = 150; }
-      else {
-        const otherNodes = nodeIds.filter(nid => nid !== 's' && nid !== 't');
+      if (id === "s") {
+        x = 0;
+        y = 150;
+      } else if (id === "t") {
+        x = 650;
+        y = 150;
+      } else {
+        const otherNodes = nodeIds.filter((nid) => nid !== "s" && nid !== "t");
         const nodeIndex = otherNodes.indexOf(id);
         const col = 1 + Math.floor(nodeIndex / 3);
         const row = nodeIndex % 3;
         x = 150 * col;
         y = 100 * row;
       }
-      const label = id === 's' ? 's (Source)' : id === 't' ? 't (Sink)' : id.toUpperCase();
+      const label =
+        id === "s" ? "s (Source)" : id === "t" ? "t (Sink)" : id.toUpperCase();
       return {
         id,
         position: { x, y },
         data: { label: label, originalLabel: label },
-        type: id === 's' ? 'input' : id === 't' ? 'output' : 'default',
+        type: id === "s" ? "input" : id === "t" ? "output" : "default",
       };
     });
 
@@ -174,11 +200,11 @@ function ComparePage() {
           numNodes: nodeIds.length,
           numEdges: parsedEdges.length,
           density: parsedEdges.length / (nodeIds.length * (nodeIds.length - 1)),
-          isUnitGraph: algoInputEdges.every(e => e.capacity === 1),
+          isUnitGraph: algoInputEdges.every((e) => e.capacity === 1),
         };
 
         let start = performance.now();
-        const stepsFF = runFordFulkerson(nodeIds, algoInputEdges, 's', 't');
+        const stepsFF = runFordFulkerson(nodeIds, algoInputEdges, "s", "t");
         let end = performance.now();
         stats.ff = {
           time: end - start,
@@ -187,37 +213,63 @@ function ComparePage() {
         };
 
         start = performance.now();
-        const stepsDinic = runDinic(nodeIds, algoInputEdges, 's', 't');
+        const stepsDinic = runDinic(nodeIds, algoInputEdges, "s", "t");
         end = performance.now();
-        const dinicPhases = new Set(stepsDinic.slice(0, -1).map(s => s.description.match(/Phase (\d+)/)?.[1])).size;
+        const dinicPhases = new Set(
+          stepsDinic
+            .slice(0, -1)
+            .map((s) => s.description.match(/Phase (\d+)/)?.[1]),
+        ).size;
         stats.dinic = {
           time: end - start,
-          maxFlow: calculateMaxFlow(stepsDinic[stepsDinic.length - 1], parsedEdges),
+          maxFlow: calculateMaxFlow(
+            stepsDinic[stepsDinic.length - 1],
+            parsedEdges,
+          ),
           operationCount: stepsDinic.length - 1,
           phases: dinicPhases || 1,
         };
 
         start = performance.now();
-        const stepsPR = runPushRelabel(nodeIds, algoInputEdges, 's','t');
+        const stepsPR = runPushRelabel(nodeIds, algoInputEdges, "s", "t");
         end = performance.now();
         stats.pr = {
           time: end - start,
           maxFlow: calculateMaxFlow(stepsPR[stepsPR.length - 1], parsedEdges),
           operationCount: stepsPR.length - 1,
-          pushes: stepsPR.filter(s => s.type === 'push').length,
-          relabels: stepsPR.filter(s => s.type === 'relabel').length,
+          pushes: stepsPR.filter((s) => s.type === "push").length,
+          relabels: stepsPR.filter((s) => s.type === "relabel").length,
+        };
+
+        start = performance.now();
+        const stepsEK = runEdmondsKarp(nodeIds, algoInputEdges, "s", "t");
+        end = performance.now();
+        stats.ek = {
+          time: end - start,
+          maxFlow: calculateMaxFlow(stepsEK[stepsEK.length - 1], parsedEdges),
+          operationCount: stepsEK.length - 1,
+        };
+
+        start = performance.now();
+        const stepsBK = runBoykovKolmogorov(nodeIds, algoInputEdges, "s", "t");
+        end = performance.now();
+        stats.bk = {
+          time: end - start,
+          maxFlow: calculateMaxFlow(stepsBK[stepsBK.length - 1], parsedEdges),
+          operationCount: stepsBK.length - 1,
         };
 
         setMasterStepData({
           stepsFF,
+          stepsEK,
           stepsDinic,
           stepsPR,
+          stepsBK,
           initialNodes: generatedNodes,
           initialEdges: parsedEdges,
           stats: stats,
           graphProperties: graphProperties,
         });
-        
       } catch (error) {
         console.error("Analysis failed:", error);
         setErrorMessage("An error occurred during analysis.");
@@ -226,15 +278,19 @@ function ComparePage() {
     }, 50);
   };
 
+  const maxStep = masterStepData
+    ? Math.max(
+        masterStepData.stepsFF.length,
+        masterStepData.stepsEK.length,
+        masterStepData.stepsDinic.length,
+        masterStepData.stepsPR.length,
+        masterStepData.stepsBK.length,
+      ) - 1
+    : 0;
 
-  const maxStep = masterStepData ? Math.max(
-    masterStepData.stepsFF.length,
-    masterStepData.stepsDinic.length,
-    masterStepData.stepsPR.length
-  ) - 1 : 0;
-
-  const handleNext = () => setCurrentStep(prev => Math.min(prev + 1, maxStep));
-  const handlePrev = () => setCurrentStep(prev => Math.max(prev - 1, -1));
+  const handleNext = () =>
+    setCurrentStep((prev) => Math.min(prev + 1, maxStep));
+  const handlePrev = () => setCurrentStep((prev) => Math.max(prev - 1, -1));
   const handleReset = () => setCurrentStep(-1);
 
   // --- KEY: Get the data for the currently expanded modal ---
@@ -242,28 +298,27 @@ function ComparePage() {
 
   return (
     <div className="compare-page-container">
-      
       <div className="compare-controls-bar">
         <div className="compare-input-area">
           <textarea
             value={userInput}
             onChange={handleTextareaChange}
-            readOnly={selectedPreset !== 'custom'}
-            className={selectedPreset !== 'custom' ? 'locked' : ''}
+            readOnly={selectedPreset !== "custom"}
+            className={selectedPreset !== "custom" ? "locked" : ""}
             rows="8"
             placeholder="s,a,10&#10;a,t,10"
           />
           <div className="input-buttons">
-            <button 
-              className="compare-generate-btn" 
-              onClick={handleGenerateGraph} 
+            <button
+              className="compare-generate-btn"
+              onClick={handleGenerateGraph}
               disabled={isLoading}
             >
               {isLoading ? "Running..." : "Generate & Run All"}
             </button>
-            <select 
-              className="preset-select" 
-              value={selectedPreset} 
+            <select
+              className="preset-select"
+              value={selectedPreset}
               onChange={handlePresetChange}
             >
               <option value="default">Classic Graph</option>
@@ -281,14 +336,14 @@ function ComparePage() {
           <div className="step-counter">
             Step {currentStep < 0 ? 0 : currentStep + 1}
           </div>
-          <button 
-            onClick={handleNext} 
+          <button
+            onClick={handleNext}
             disabled={!masterStepData || currentStep >= maxStep}
           >
             Next
           </button>
-          <button 
-            onClick={handleReset} 
+          <button
+            onClick={handleReset}
             disabled={!masterStepData}
             className="reset-btn"
           >
@@ -319,7 +374,18 @@ function ComparePage() {
               initialNodes={masterStepData.initialNodes}
               initialEdges={masterStepData.initialEdges}
               stats={masterStepData.stats.ff}
-              onExpandClick={() => setExpandedViz('ff')}
+              onExpandClick={() => setExpandedViz("ff")}
+              mode="compact"
+            />
+            <VisualizationInstance
+              title="Edmonds-Karp"
+              algorithmType="path"
+              allSteps={masterStepData.stepsEK}
+              currentStepIndex={currentStep}
+              initialNodes={masterStepData.initialNodes}
+              initialEdges={masterStepData.initialEdges}
+              stats={masterStepData.stats.ek}
+              onExpandClick={() => setExpandedViz("edmondsKarp")}
               mode="compact"
             />
             <VisualizationInstance
@@ -330,7 +396,7 @@ function ComparePage() {
               initialNodes={masterStepData.initialNodes}
               initialEdges={masterStepData.initialEdges}
               stats={masterStepData.stats.dinic}
-              onExpandClick={() => setExpandedViz('dinic')}
+              onExpandClick={() => setExpandedViz("dinic")}
               mode="compact"
             />
             <VisualizationInstance
@@ -341,14 +407,25 @@ function ComparePage() {
               initialNodes={masterStepData.initialNodes}
               initialEdges={masterStepData.initialEdges}
               stats={masterStepData.stats.pr}
-              onExpandClick={() => setExpandedViz('pr')}
+              onExpandClick={() => setExpandedViz("pr")}
+              mode="compact"
+            />
+            <VisualizationInstance
+              title="Boykov-Kolmogorov"
+              algorithmType="path"
+              allSteps={masterStepData.stepsBK}
+              currentStepIndex={currentStep}
+              initialNodes={masterStepData.initialNodes}
+              initialEdges={masterStepData.initialEdges}
+              stats={masterStepData.stats.bk}
+              onExpandClick={() => setExpandedViz("bk")}
               mode="compact"
             />
           </>
         )}
       </div>
 
-      <AnalysisDisplay 
+      <AnalysisDisplay
         stats={masterStepData?.stats}
         graphProperties={masterStepData?.graphProperties}
       />
@@ -379,7 +456,6 @@ function ComparePage() {
         </FullScreenModal>
       )}
       {/* --- END KEY ADDITION --- */}
-
     </div>
   );
 }

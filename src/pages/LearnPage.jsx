@@ -1,6 +1,6 @@
-import React from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import './LearnPage.css';
+import React from "react";
+import { NavLink, Outlet } from "react-router-dom";
+import "./LearnPage.css";
 
 // This component is the main layout for the /learn section.
 // It renders the sidebar and an <Outlet>, which is a placeholder
@@ -18,22 +18,18 @@ function LearnPage() {
             </NavLink>
           </li>
           <li>
-            <NavLink to="/learn/ford-fulkerson">
-              Ford-Fulkerson
-            </NavLink>
+            <NavLink to="/learn/ford-fulkerson">Ford-Fulkerson</NavLink>
           </li>
           <li>
-            <NavLink to="/learn/dinic">
-              Dinic's Algorithm
-            </NavLink>
+            <NavLink to="/learn/edmonds-karp">Edmonds-Karp</NavLink>
           </li>
           <li>
-            <NavLink to="/learn/push-relabel">
-              Push-Relabel
-            </NavLink>
-            <NavLink to="/learn/MPM">
-              MPM
-            </NavLink>
+            <NavLink to="/learn/dinic">Dinic's Algorithm</NavLink>
+          </li>
+          <li>
+            <NavLink to="/learn/push-relabel">Push-Relabel</NavLink>
+            <NavLink to="/learn/boykov-kolmogorov">Boykov-Kolmogorov</NavLink>
+            <NavLink to="/learn/MPM">MPM</NavLink>
           </li>
         </ul>
       </nav>
